@@ -1,0 +1,11 @@
+pymongo>=4.10
+numpy>=1.26
+pandas>=2.1
+rapidfuzz>=3.6
+scikit-learn>=1.4
+sentence-transformers>=3.0
+requests>=2.31
+python-dotenv>=1.0
+streamlit>=1.35
+plotly>=5.20
+pytest>=8.0

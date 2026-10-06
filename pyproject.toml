@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "planer"
+version = "0.3.0"
+description = "PlanER: cost-based optimization of hybrid classical-LLM entity resolution plans in MongoDB"
+requires-python = ">=3.11"
+authors = [{ name = "Shashang Patel" }, { name = "Nauman Syed" }]
+
+[project.scripts]
+planer = "planer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["mongo: needs a running MongoDB (skipped otherwise)"]
