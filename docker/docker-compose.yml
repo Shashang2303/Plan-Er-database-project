@@ -1,0 +1,106 @@
+# PlanER stack (T1, NFR-10): MongoDB 8.2 + mongot (Community Search) + Ollama + app.
+#
+#   docker compose -f docker/docker-compose.yml up -d                  # mongod + mongot
+#   docker compose -f docker/docker-compose.yml --profile app up -d    # + Streamlit app container
+#   docker compose -f docker/docker-compose.yml --profile ollama up -d # + Ollama container (only if
+#                                                                       #   Ollama is not installed natively)
+#
+# Ports are bound to 127.0.0.1 only, so nothing is reachable from outside this machine.
+# From the host (Python, MongoDB Compass) connect with:
+#   mongodb://localhost:27018/?directConnection=true
+
+name: planer
+
+services:
+  mongod:
+    image: mongodb/mongodb-community-server:8.2.12-ubuntu2204
+    command: ["--config", "/etc/mongod.conf"]
+    volumes:
+      - ./mongod.conf:/etc/mongod.conf:ro
+      - mongo-data:/data/db
+    ports:
+      # host port 27018: a native MongoDB Windows service may already own 27017
+      - "127.0.0.1:${MONGO_HOST_PORT:-27018}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # One-shot: initiate the single-node replica set (mongot syncs through the oplog / change
+  # streams, so a replica set is mandatory) and create the user mongot authenticates as.
+  mongo-init:
+    image: mongodb/mongodb-community-server:8.2.12-ubuntu2204
+    depends_on:
+      mongod:
+        condition: service_healthy
+    entrypoint: ["mongosh", "--host", "mongod", "--quiet", "--file", "/init/init-replica.js"]
+    environment:
+      MONGOT_PASSWORD: ${MONGOT_PASSWORD:-planer-mongot-pw}
+    volumes:
+      - ./init-replica.js:/init/init-replica.js:ro
+    restart: "no"
+
+  # One-shot: write mongot's password file into a volume with 0400 permissions
+  # (a file bind-mounted from Windows would get 0777, which mongot rejects).
+  mongot-secret:
+    image: busybox:1.37
+    command: ["sh", "-c", "printf '%s' \"$$MONGOT_PASSWORD\" > /secrets/passwordFile && chmod 400 /secrets/passwordFile"]
+    environment:
+      MONGOT_PASSWORD: ${MONGOT_PASSWORD:-planer-mongot-pw}
+    volumes:
+      - mongot-secrets:/secrets
+    restart: "no"
+
+  mongot:
+    image: mongodb/mongodb-community-search:1.70.6
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+      mongot-secret:
+        condition: service_completed_successfully
+    volumes:
+      - ./mongot.conf:/mongot-community/config.default.yml:ro
+      - mongot-data:/data/mongot
+      - mongot-secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:8080:8080"   # health check: curl localhost:8080/health -> SERVING
+    restart: unless-stopped
+
+  # Optional: only needed when Ollama is NOT installed natively on the host (native Ollama already
+  # listens on 11434 and is not limited by Docker Desktop's memory). Enable with --profile ollama.
+  ollama:
+    image: ollama/ollama:0.40.14
+    profiles: ["ollama"]
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    restart: unless-stopped
+
+  app:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    depends_on:
+      mongod:
+        condition: service_healthy
+    environment:
+      MONGO_URI: mongodb://mongod:27017/?directConnection=true
+      # native Ollama on the host; use http://ollama:11434 with --profile ollama
+      OLLAMA_URL: ${APP_OLLAMA_URL:-http://host.docker.internal:11434}
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ../data:/app/data
+    ports:
+      - "127.0.0.1:8501:8501"
+
+volumes:
+  mongo-data:
+  mongot-data:
+  mongot-secrets:
+  ollama-models:
