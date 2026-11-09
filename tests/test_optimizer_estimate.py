@@ -1,3 +1,5 @@
+"""Stratified sample allocation and the Eq. (1) estimator (T14): cost terms, recall capped by pair
+completeness, and cached LLM pairs charged nothing."""
 import numpy as np
 
 from planer.optimizer.estimate import estimate_plan

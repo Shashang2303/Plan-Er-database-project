@@ -41,23 +41,34 @@ class MatcherProfile:
     train_labels: int = 0              # labels consumed by a supervised matcher (-> C_label)
     tpr: float | None = None           # LLM only: P(match verdict | true match)
     fpr: float | None = None           # LLM only: P(match verdict | non-match)
+    # supervised matchers: scores of a model trained exactly as execution would train it for each path
+    scores_by_path: dict[str, np.ndarray] = field(default_factory=dict)
+
+    def scores_for(self, key: str) -> np.ndarray:
+        return self.scores_by_path.get(key, self.scores)
 
     def to_doc(self) -> dict:
+        def enc(arr):
+            return [None if np.isnan(s) else float(s) for s in arr]
+
         return {
-            "name": self.name, "is_llm": self.is_llm,
-            "scores": [None if np.isnan(s) else float(s) for s in self.scores],
+            "name": self.name, "is_llm": self.is_llm, "scores": enc(self.scores),
             "cost_per_pair_usd": self.cost_per_pair_usd, "secs_per_pair": self.secs_per_pair,
             "fit_secs": self.fit_secs, "train_labels": self.train_labels, "tpr": self.tpr, "fpr": self.fpr,
+            "scores_by_path": {k: enc(v) for k, v in self.scores_by_path.items()},
         }
 
     @classmethod
     def from_doc(cls, d: dict) -> "MatcherProfile":
+        def dec(arr):
+            return np.array([np.nan if s is None else s for s in arr], dtype=float)
+
         return cls(
-            name=d["name"], is_llm=d["is_llm"],
-            scores=np.array([np.nan if s is None else s for s in d["scores"]], dtype=float),
+            name=d["name"], is_llm=d["is_llm"], scores=dec(d["scores"]),
             cost_per_pair_usd=d["cost_per_pair_usd"], secs_per_pair=d["secs_per_pair"],
             fit_secs=d.get("fit_secs", 0.0), train_labels=d.get("train_labels", 0),
             tpr=d.get("tpr"), fpr=d.get("fpr"),
+            scores_by_path={k: dec(v) for k, v in (d.get("scores_by_path") or {}).items()},
         )
 
 
@@ -119,7 +130,9 @@ def profile_matchers(
     llm_sample: int = 60,
     seed: int = 7,
     db: Database | None = None,
+    store: bool = True,
 ) -> OptimizerProfile:
+    """store=False builds a throw-away profile (experiments) without replacing the latest one."""
     db = db if db is not None else dbm.get_db()
     t_start = time.perf_counter()
     spec = get_dataset(dataset)
@@ -187,21 +200,43 @@ def profile_matchers(
             secs_per_pair=secs, fit_secs=fit_secs, train_labels=train_labels,
         )
 
+    # Execution trains the forest on the train-split candidates of the chosen path only, which is
+    # far less data than the union used above. Profiling one forest per path makes the estimate
+    # measure the model that will actually run (the union-trained forest over-predicted F1 by ~0.11).
+    if "rf" in profiles:
+        gold_train = load_gold(dataset, db, split="train")
+        for prof in latest_profiles(dataset, db):
+            if "error" in prof:
+                continue
+            train_pairs = [(c["a_id"], c["b_id"])
+                           for c in db[dbm.CANDIDATES].find({"req_id": prof["req_id"]}, {"a_id": 1, "b_id": 1})
+                           if in_split(c["a_id"], "train")]
+            if not train_pairs:
+                continue
+            tb = PairBatch.load(db, spec, train_pairs)
+            rf = make_matcher("rf").fit(tb, tb.labels(gold_train))
+            profiles["rf"].scores_by_path[path_key(prof["path"], prof.get("k"))] = rf.score(batch)
+        log.info("random forest profiled per access path (%d paths)", len(profiles["rf"].scores_by_path))
+
     paths = {}
     for prof in latest_profiles(dataset, db):
         if "error" in prof:
             continue
+        # train-split candidates of this path = labels a random forest would consume if the plan uses it
+        n_train = sum(1 for c in db[dbm.CANDIDATES].find({"req_id": prof["req_id"]}, {"a_id": 1})
+                      if in_split(c["a_id"], "train"))
         paths[path_key(prof["path"], prof.get("k"))] = {
             "path": prof["path"], "k": prof.get("k"), "n_candidates": prof["n_candidates"],
             "pc": prof.get("pc_estimation", prof["pair_completeness"]),
-            "secs": prof["secs"], "block_cost_usd": prof["secs"] * rate,
+            "secs": prof["secs"], "block_cost_usd": prof["secs"] * rate, "n_train": n_train,
         }
 
     result = OptimizerProfile(
         dataset=dataset, sample=sample, matchers=profiles, feature_cost_per_pair_usd=feature_cost,
         paths=paths, secs=time.perf_counter() - t_start,
     )
-    db[dbm.RUN_LOG].insert_one(result.to_doc() | {"summary": summarize(result)})
+    if store:
+        db[dbm.RUN_LOG].insert_one(result.to_doc() | {"summary": summarize(result)})
     log.info("optimizer profile for %s built in %.1fs", dataset, result.secs)
     return result
 

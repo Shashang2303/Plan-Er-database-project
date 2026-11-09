@@ -74,7 +74,7 @@ def estimate_plan(plan: Plan, prof: OptimizerProfile, llm_cached_fraction: float
         c_i = mp.cost_per_pair_usd * ((1 - llm_cached_fraction) if mp.is_llm else 1.0)
         match_cost += n_i * c_i
 
-        sc = mp.scores[pending]
+        sc = mp.scores_for(key)[pending]
         y = s.labels[pending]
         w = s.weight[pending]
         known = ~np.isnan(sc)
@@ -108,7 +108,9 @@ def estimate_plan(plan: Plan, prof: OptimizerProfile, llm_cached_fraction: float
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
     feature_cost = n1 * prof.feature_cost_per_pair_usd if not plan.matchers[0].startswith("llm") else 0.0
-    rf_labels = sum(prof.matchers[_profile_key(m)].train_labels for m in plan.matchers if m == "rf")
+    # the executor trains the forest on the train-split candidates of the chosen path only
+    rf_labels = sum(path.get("n_train", prof.matchers[_profile_key(m)].train_labels)
+                    for m in plan.matchers if m == "rf")
     label_cost = s.label_cost_usd + rf_labels * settings.usd_per_label
     block_cost = path["block_cost_usd"]
     total = block_cost + feature_cost + match_cost + label_cost
