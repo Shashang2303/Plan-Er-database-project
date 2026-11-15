@@ -34,6 +34,8 @@ class Settings:
         default_factory=lambda: tuple(m.strip() for m in _env("LLM_MODELS", "qwen2.5:1.5b").split(",") if m.strip())
     )
     llm_timeout_s: float = field(default_factory=lambda: float(_env("LLM_TIMEOUT_S", "120")))
+    # latency guard: the optimizer only considers plans expected to make at most this many new LLM calls
+    llm_max_calls: int = field(default_factory=lambda: int(_env("LLM_MAX_CALLS_PER_RUN", "300")))
     embed_model: str = field(default_factory=lambda: _env("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"))
     usd_per_compute_second: float = field(default_factory=lambda: float(_env("USD_PER_COMPUTE_SECOND", "0.0001")))
     usd_per_label: float = field(default_factory=lambda: float(_env("USD_PER_LABEL", "0.02")))

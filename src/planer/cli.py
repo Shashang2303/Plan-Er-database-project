@@ -149,6 +149,68 @@ def cmd_run(args) -> None:
     _print(report.as_dict())
 
 
+def _objective(args) -> dict:
+    if getattr(args, "budget", None) is not None:
+        return {"type": "budget", "value": args.budget}
+    return {"type": "theta", "value": args.theta}
+
+
+def cmd_optimize(args) -> None:
+    from .optimizer import optimize, optimize_and_execute
+    from .request import default_request, submit
+
+    req_id = submit(default_request(args.dataset, _objective(args)))
+    if args.execute:
+        res, report = optimize_and_execute(req_id)
+    else:
+        res, report = optimize(req_id), None
+    print(f"\nchosen plan: {res.chosen.plan.describe()}")
+    print(f"feasible: {res.feasible}   plans enumerated: {res.n_plans}   Pareto front: {len(res.pareto)}   "
+          f"optimizer time: {res.secs:.1f}s")
+    print(f"predicted: cost ${res.chosen.cost:.4f}  F1 {res.chosen.f1:.3f}")
+    print(f"\n{'cost $':>10} {'F1':>6}  Pareto plan")
+    for p in res.pareto[: args.show]:
+        mark = " <- chosen" if p is res.chosen else ""
+        print(f"{p.cost:>10.4f} {p.f1:>6.3f}  {p.plan.describe()}{mark}")
+    if report:
+        r = report.as_dict()
+        print(f"\nobserved: cost ${r['cost_usd']:.4f}  F1 {r['f1_pair']:.3f}  cluster F1 {r['f1_cluster']:.3f}  "
+              f"LLM calls {r['llm_calls']} (cache hits {r['cache_hits']})  {r['secs']:.1f}s")
+        if r["error"]:
+            e = r["error"]
+            print(f"prediction error: cost {e['cost_rel_error']:.1%}  F1 {e['f1_abs_error']:.3f}")
+        if r["repair"]:
+            print(f"transitivity repair: {r['repair']['violations_before']} -> {r['repair']['violations_after']} "
+                  f"violations, {r['repair']['edges_removed']} edges removed, 0 LLM calls")
+
+
+def cmd_evaluate(args) -> None:
+    from .evaluation import evaluate
+
+    for key in _datasets(args.dataset):
+        rows = evaluate(key, _objective(args), llm_budget=args.llm_budget)
+        print(f"\n{key}  (test-split pair completeness {rows[0]['pc_test']:.3f})")
+        print(f"{'method':<32}{'P':>6}{'R':>6}{'F1':>7}{'LLM calls':>11}{'cost $':>10}  note")
+        for r in rows:
+            est = "~" if r["estimated"] else " "
+            print(f"{r['method']:<32}{r['precision']:>6.2f}{r['recall']:>6.2f}{est}{r['f1']:>6.3f}"
+                  f"{r['llm_calls']:>11,}{r['cost_usd']:>10.4f}  {r.get('note', '')}")
+
+
+def cmd_errors(args) -> None:
+    from .evaluation import prediction_errors
+
+    rows = prediction_errors(dataset=args.dataset)
+    if not rows:
+        print("no optimizer-driven runs yet; use `planer optimize <dataset> --execute`")
+        return
+    print(f"{'dataset':<14}{'pred $':>9}{'obs $':>9}{'err':>7}{'pred F1':>9}{'obs F1':>8}{'err':>7}")
+    for r in rows:
+        ce = f"{r['cost_rel_error']:.0%}" if r["cost_rel_error"] is not None else "-"
+        print(f"{r['dataset']:<14}{r['pred_cost']:>9.3f}{r['obs_cost']:>9.3f}{ce:>7}"
+              f"{r['pred_f1']:>9.3f}{r['obs_f1']:>8.3f}{r['f1_abs_error']:>7.3f}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="planer", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -209,6 +271,26 @@ def main(argv: list[str] | None = None) -> None:
             p.add_argument("--theta", type=float, default=0.85)
             p.add_argument("--budget", type=float, default=None)
         p.set_defaults(func=func)
+
+    for name, func, helptext in (
+        ("optimize", cmd_optimize, "choose a plan for a target F1 or budget (T15); --execute runs it (T16)"),
+        ("evaluate", cmd_evaluate, "PlanER vs LLM-only, best classical and embedding-proxy baselines (T19)"),
+    ):
+        p = sub.add_parser(name, help=helptext)
+        p.add_argument("dataset", help=ds_help if name == "evaluate" else "dataset key")
+        g = p.add_mutually_exclusive_group()
+        g.add_argument("--theta", type=float, default=0.85, help="target F1 (default 0.85)")
+        g.add_argument("--budget", type=float, default=None, help="budget in USD instead of a target F1")
+        if name == "optimize":
+            p.add_argument("--execute", action="store_true", help="run the chosen plan and log predicted vs observed")
+            p.add_argument("--show", type=int, default=12, help="Pareto plans to list")
+        else:
+            p.add_argument("--llm-budget", type=int, default=100, help="max LLM-scored pairs per estimated baseline")
+        p.set_defaults(func=func)
+
+    p = sub.add_parser("errors", help="optimizer prediction error, predicted vs observed (FR-20)")
+    p.add_argument("dataset", nargs="?", default=None)
+    p.set_defaults(func=cmd_errors)
 
     args = parser.parse_args(argv)
     logging.basicConfig(

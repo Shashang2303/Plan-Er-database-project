@@ -24,7 +24,7 @@ from . import db as dbm
 from .blocking import get_path
 from .blocking.profile import store_candidates
 from .cascade import run_cascade
-from .clustering import connected_components, count_transitivity_violations
+from .clustering import connected_components, count_transitivity_violations, repair_clusters
 from .config import settings
 from .matchers import PairBatch, make_matcher
 from .matchers.llm import cache_key
@@ -57,6 +57,9 @@ class RunReport:
     transitivity_violations: int
     tiers: list[dict] = field(default_factory=list)
     predicted: dict | None = None
+    error: dict | None = None       # FR-20: predicted vs observed
+    repair: dict | None = None      # FR-18: transitivity repair statistics
+    budget: dict | None = None      # NFR-11: budget compliance
 
     @property
     def cache_hit_rate(self) -> float:
@@ -86,7 +89,20 @@ def _fit_matchers(matchers, batch: PairBatch, gold: set) -> tuple[dict[str, floa
     return fit_secs, n_labels
 
 
-def execute(req_id, plan: Plan, predicted: dict | None = None, db: Database | None = None) -> RunReport:
+def prediction_error(predicted: dict | None, obs_cost: float, obs_f1: float) -> dict | None:
+    """FR-20: optimizer prediction error against the observed run (AC-4 thresholds: 15% / 0.05)."""
+    if not predicted:
+        return None
+    # plain Python types: NumPy scalars (np.bool_) cannot be encoded to BSON
+    cost_rel = float(abs(predicted["cost_usd"] - obs_cost) / obs_cost) if obs_cost else None
+    f1_abs = float(abs(predicted["f1"] - obs_f1))
+    return {"cost_rel_error": cost_rel, "f1_abs_error": f1_abs,
+            "cost_within_15pct": bool(cost_rel is not None and cost_rel <= 0.15), "f1_within_0.05": bool(f1_abs <= 0.05)}
+
+
+def execute(req_id, plan: Plan, predicted: dict | None = None, sample_label_cost: float = 0.0,
+            db: Database | None = None) -> RunReport:
+    """Run a physical plan. sample_label_cost charges the optimizer's labeled sample to C_label."""
     db = db if db is not None else dbm.get_db()
     req_oid = ObjectId(req_id) if isinstance(req_id, str) else req_id
     req: ERRequest = load_request(req_oid, db)
@@ -144,16 +160,28 @@ def execute(req_id, plan: Plan, predicted: dict | None = None, db: Database | No
             for i in match_idx
         ])
 
-    # 4. clustering -----------------------------------------------------------------------
-    clusters = connected_components(matches, req.source_a, req.source_b)
-    db[dbm.CLUSTERS].delete_many({"req_id": req_oid})
-    if clusters:
-        db[dbm.CLUSTERS].insert_many([
-            {"req_id": req_oid, "cluster_id": n, "members": members, "size": len(members), "violations_repaired": 0}
-            for n, members in enumerate(clusters)
-        ])
+    # 4. clustering (FR-17) and transitivity repair (FR-18) -------------------------------
     nonmatches = {(batch.a_ids[i], batch.b_ids[i]) for i in np.where(~result.verdict)[0]}
+    clusters = connected_components(matches, req.source_a, req.source_b)
     violations = count_transitivity_violations(clusters, nonmatches, req.source_a, req.source_b)
+    repair = None
+    if plan.clustering == "cc_repair":
+        conf = {(batch.a_ids[i], batch.b_ids[i]): float(result.score[i]) for i in match_idx}
+        cluster_docs, repair = repair_clusters(conf, nonmatches, req.source_a, req.source_b)
+        clusters = [d["members"] for d in cluster_docs]
+        repair["violations_after"] = count_transitivity_violations(clusters, nonmatches, req.source_a, req.source_b)
+        log.info("transitivity repair: %d -> %d violations, %d edges removed, 0 LLM calls",
+                 repair["violations_before"], repair["violations_after"], repair["edges_removed"])
+    else:
+        cluster_docs = [{"members": m, "violations_repaired": 0} for m in clusters]
+    db[dbm.CLUSTERS].delete_many({"req_id": req_oid})
+    if cluster_docs:
+        db[dbm.CLUSTERS].insert_many([
+            {"req_id": req_oid, "cluster_id": n, "members": d["members"], "size": len(d["members"]),
+             "violations_repaired": d["violations_repaired"]}
+            for n, d in enumerate(cluster_docs)
+        ])
+    violations_final = repair["violations_after"] if repair else violations
     secs = time.perf_counter() - t_start
 
     # 5. observed quality on the test split ------------------------------------------------
@@ -166,7 +194,7 @@ def execute(req_id, plan: Plan, predicted: dict | None = None, db: Database | No
 
     block_cost = block.secs * settings.usd_per_compute_second
     match_cost = sum(t.cost_usd for t in result.tiers)
-    label_cost = n_train_labels * settings.usd_per_label
+    label_cost = n_train_labels * settings.usd_per_label + sample_label_cost
     report = RunReport(
         req_id=str(req_oid), dataset=spec.key, plan=plan.to_doc(),
         n_candidates=len(block), n_matches=len(matches), n_clusters=len(clusters),
@@ -174,20 +202,35 @@ def execute(req_id, plan: Plan, predicted: dict | None = None, db: Database | No
         match_cost_usd=match_cost, label_cost_usd=label_cost, secs=secs,
         llm_calls=result.llm_calls, cache_hits=result.cache_hits, pc_test=pc_test,
         precision=pair_q["precision"], recall=pair_q["recall"], f1_pair=pair_q["f1"],
-        f1_cluster=cluster_q["f1"], transitivity_violations=violations,
+        f1_cluster=cluster_q["f1"], transitivity_violations=violations_final,
         tiers=[t.to_doc() for t in result.tiers], predicted=predicted,
     )
+    report.error = prediction_error(predicted, report.cost_usd, report.f1_pair)
+    report.repair = repair
+    objective = db[dbm.REQUESTS].find_one({"_id": req_oid}, {"objective": 1}).get("objective") or {}
+    budget = None
+    if objective.get("type") == "budget":  # NFR-11: log every overrun with its cause
+        over = bool(report.cost_usd > objective["value"])
+        cause = None
+        if over:
+            pred_cost = (predicted or {}).get("cost_usd")
+            cause = ("estimation error: predicted ${:.4f}".format(pred_cost) if pred_cost is not None
+                     else "no prediction: plan chosen by hand")
+        budget = {"budget_usd": objective["value"], "over_budget": over, "cause": cause}
+    report.budget = budget
 
     db[dbm.RUN_LOG].insert_one({
         "kind": "execution", "ts": datetime.now(timezone.utc), "req_id": req_oid, "dataset": spec.key,
         "plan": plan.to_doc(), "plan_text": plan.describe(), "pred": predicted,
+        "error": report.error, "repair": repair, "budget": budget,
         "obs": {
             "cost_usd": report.cost_usd, "block_cost_usd": block_cost, "match_cost_usd": match_cost,
             "label_cost": label_cost, "secs": secs, "llm_calls": report.llm_calls,
             "cache_hits": report.cache_hits, "cache_hit_rate": report.cache_hit_rate,
             "f1_pair": report.f1_pair, "precision": report.precision, "recall": report.recall,
             "f1_cluster": report.f1_cluster, "pc_test": pc_test, "n_candidates": len(block),
-            "n_matches": len(matches), "n_clusters": len(clusters), "transitivity_violations": violations,
+            "n_matches": len(matches), "n_clusters": len(clusters), "transitivity_violations": violations_final,
+            "transitivity_violations_before_repair": violations,
         },
         "tiers": report.tiers, "explain": block.explain, "search_backend": settings.search_backend,
     })

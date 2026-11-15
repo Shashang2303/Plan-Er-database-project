@@ -2,21 +2,21 @@
 
 Python API (D.4.2 section 8, NFR-9):
     req_id = planer.submit(request)            # store a declarative ER request
+    result = planer.optimize(req_id)           # chosen plan P = (b, M, tau, kappa), Pareto set, predictions
     report = planer.execute(req_id, plan)      # run a physical plan, log observed cost and F1
-    est    = planer.estimate(dataset, plan)    # predicted cost and F1 of a plan (T14)
-    planer.optimize(req_id)                    # T15, Phase 3 (due Nov 15): not implemented yet
+    est    = planer.estimate(dataset, plan)    # predicted cost and F1 of any plan
 """
 from __future__ import annotations
 
-__version__ = "0.3.0"
+__version__ = "1.0.0"
 
 from .request import ERRequest, Objective, Plan, submit
 
 
-def execute(req_id, plan: Plan, predicted: dict | None = None):
+def execute(req_id, plan: Plan, predicted: dict | None = None, sample_label_cost: float = 0.0):
     from .executor import execute as _execute
 
-    return _execute(req_id, plan, predicted=predicted)
+    return _execute(req_id, plan, predicted=predicted, sample_label_cost=sample_label_cost)
 
 
 def estimate(dataset: str, plan: Plan, use_cache_stats: bool = True):
@@ -27,10 +27,9 @@ def estimate(dataset: str, plan: Plan, use_cache_stats: bool = True):
 
 
 def optimize(req_id):
-    raise NotImplementedError(
-        "Plan enumeration with Pareto pruning (T15) is scheduled for Phase 3 (due Nov 15). "
-        "Use planer.estimate() to predict a hand-chosen plan and planer.execute() to run it."
-    )
+    from .optimizer import optimize as _optimize
+
+    return _optimize(req_id)
 
 
 __all__ = ["ERRequest", "Objective", "Plan", "submit", "execute", "estimate", "optimize"]

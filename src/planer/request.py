@@ -15,6 +15,7 @@ ACCESS_PATHS = ("btree", "multikey", "search", "vector")
 TOPK_PATHS = ("search", "vector")
 # Fixed cost order of the matcher tiers (D.2.1 section V). "llm" means the first configured local model.
 MATCHER_ORDER = ("rules", "fs", "rf", "llm")
+CLUSTERING_METHODS = ("connected_components", "cc_repair")
 
 
 @dataclass
@@ -102,6 +103,8 @@ class Plan:
                 raise ValueError(f"invalid thresholds ({lo}, {hi}); need 0 <= l <= u <= 1")
         if self.access_path in TOPK_PATHS and not self.k:
             self.k = 10
+        if self.clustering not in CLUSTERING_METHODS:
+            raise ValueError(f"clustering must be one of {CLUSTERING_METHODS}")
 
     def to_doc(self) -> dict:
         return {
