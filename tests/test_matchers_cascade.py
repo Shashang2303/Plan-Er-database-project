@@ -1,3 +1,6 @@
+"""Matchers and cascade (T8-T11): rules and features rank true matches first, Fellegi-Sunter EM separates
+matches, the random forest learns, the cascade escalates only uncertain pairs, and llm_cache means an LLM
+verdict is never paid for twice (AC-5)."""
 import numpy as np
 
 from planer.cascade import run_cascade

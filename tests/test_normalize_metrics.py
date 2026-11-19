@@ -1,3 +1,5 @@
+"""Normalization, blocking keys, disjoint train/estimation/test splits, quality metrics, connected components
+and plan validation (FR-1, FR-2, FR-17, NFR-7)."""
 from planer.clustering import connected_components, count_transitivity_violations
 from planer.metrics import SPLITS, pair_completeness, pairs_from_clusters, prf, reduction_ratio, split_of
 from planer.normalize import blocking_key, normalize_text, parse_number, tokenize
