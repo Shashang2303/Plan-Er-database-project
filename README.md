@@ -17,11 +17,35 @@
 
 ---
 
+## 🔗 Project Links & Deliverables
+
+| | |
+|---|---|
+| **Code repository** | https://github.com/Shashang2303/Plan-Er-database-project |
+| **Project management (Hive)** | https://app.hive.com/workspace/Z5kWMP9jXME8StoTL?projectId=vq8eTbJ9SWJFRMZSA |
+| **Running application** | Self-hosted: `docker compose -f docker/docker-compose.yml up -d`, then `streamlit run ui/app.py` → http://localhost:8501 |
+
+| Deliverable | File |
+|---|---|
+| D.1 Pre-proposal | [docs/D1_Preproposal_Team07.pdf](docs/D1_Preproposal_Team07.pdf) |
+| D.2.1 Full proposal | [docs/D2_1_Full_Proposal_Team07.pdf](docs/D2_1_Full_Proposal_Team07.pdf) |
+| D.2.2 Proposal presentation | [docs/PlanER_Proposal_Presentation.pptx](docs/PlanER_Proposal_Presentation.pptx) |
+| D.3.1 Midterm status report | [docs/PlanER_D3_1_Midterm_Status_Report_Team07_v1.1.pdf](docs/PlanER_D3_1_Midterm_Status_Report_Team07_v1.1.pdf) |
+| D.4.1 User requirements & analysis | [docs/D4_1_User_Requirements_Analysis_Team07.pdf](docs/D4_1_User_Requirements_Analysis_Team07.pdf) |
+| D.4.2 Design document | [docs/PlanER_D4_2_Design_Document_Team07.pdf](docs/PlanER_D4_2_Design_Document_Team07.pdf) |
+| D.4.3 Project full application | [docs/PlanER_D4_3_Project_Full_Application_Team07.pdf](docs/PlanER_D4_3_Project_Full_Application_Team07.pdf) |
+| D.4.4 Deployment document | [docs/PlanER_D4_4_Deployment_Document_Team07.pdf](docs/PlanER_D4_4_Deployment_Document_Team07.pdf) |
+| D.4.5 User guide | [docs/PlanER_D4_5_User_Guide_Team07.pdf](docs/PlanER_D4_5_User_Guide_Team07.pdf) |
+
+Datasets: [data/README.md](data/README.md) (Leipzig ER benchmarks, committed under `data/raw/`).
+
+---
+
 ## 🏗️ Repository Structure
 
 ```text
 ├── docker/                 # Docker Compose & service configs (MongoDB 8.2, mongot, Ollama)
-├── docs/                   # Course deliverables (D.1, D.2.1, D.2.2, D.4.1, D.4.2, D.3.1)
+├── docs/                   # Course deliverables (D.1 – D.4.5)
 ├── data/                   # Benchmark datasets registry & mongoimport staging
 ├── src/planer/             # Core Python package
 │   ├── blocking/           # Access paths: B-Tree, Multikey, $search, $vectorSearch
@@ -60,10 +84,24 @@ docker compose -f docker/docker-compose.yml up -d
 ### 3. Ingest Benchmarks
 ```bash
 planer status
-planer ingest all
+planer ingest all          # download, normalize, embed and load (MongoDB on localhost:27018)
+planer index all           # $search and $vectorSearch indexes on mongot
+planer llm-pull            # local LLM into Ollama (default qwen2.5:1.5b)
 ```
 
-### 4. Run the Streamlit Interface
+### 4. Profile, Optimize, Execute, Evaluate
+```bash
+planer profile-blocking abt_buy              # pair completeness, latency, explain() of every access path
+planer profile-matchers abt_buy              # stratified labeled sample + per-matcher cost and quality
+planer optimize abt_buy --theta 0.85         # cheapest plan predicted to reach F1 >= 0.85 (Pareto set)
+planer optimize abt_buy --budget 10 --execute  # best plan within $10, run it, log predicted vs observed
+planer errors                                # optimizer prediction error per run (FR-20)
+planer evaluate abt_buy                      # PlanER vs LLM-only, best classical, embedding proxy
+```
+The optimizer skips plans expected to make more than `LLM_MAX_CALLS_PER_RUN` (default 300) new LLM
+calls, because a CPU-only local model takes a few seconds per pair.
+
+### 5. Run the Streamlit Interface
 ```bash
 streamlit run ui/app.py
 ```
@@ -75,3 +113,4 @@ streamlit run ui/app.py
 - **Abt-Buy** (noisy product titles & attributes)
 - **Amazon-GoogleProducts** (heterogeneous e-commerce catalog)
 - **DBLP-Scholar** (~168M candidate pairs, stress-testing blocking scale)
+

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "planer"
-version = "0.3.0"
+version = "1.0.0"
 description = "PlanER: cost-based optimization of hybrid classical-LLM entity resolution plans in MongoDB"
 requires-python = ">=3.11"
 authors = [{ name = "Shashang Patel" }, { name = "Nauman Syed" }]
