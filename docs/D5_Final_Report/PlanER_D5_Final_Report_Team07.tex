@@ -1,0 +1,209 @@
+% =====================================================================================================
+% D.5 Final Report -- IEEE conference template (two columns), COMP 8157 Team 07
+%
+% SKELETON ONLY. The course forbids AI-generated text, explanations, analysis or results in this paper
+% (D.5 guidelines, "Use of AI Tools"). This file therefore contains only the required structure, the
+% author block, the course's own guidance as comments, and the reference list copied from the team's
+% D.2.1 proposal. Every paragraph must be written by the team.
+%
+% Use on Overleaf: New Project -> Upload Project -> this .tex file (IEEEtran.cls is built in), or open the
+% course template https://www.overleaf.com/latex/templates/ieee-conference-template/grfzhhncsfqn and paste
+% the sections below into it.
+%
+% Where the measured numbers live in the repository (to be read, checked and reported by the team):
+%   experiments/results/evaluation_<dataset>.csv   PlanER vs LLM-only, best classical, embedding proxy
+%   experiments/results/sample_size_study.csv      optimizer estimation error vs labeled-sample size
+%   `planer errors`                                predicted vs observed cost and F1 of every run
+%   MongoDB run_log (kind = blocking_profile)      pair completeness, reduction ratio, latency, explain()
+%   MongoDB run_log (kind = optimizer_profile)     per-matcher cost, precision, recall, escalation
+%   docs/PlanER_D4_2_Design_Document_Team07.pdf    architecture and data-model figures you drew for D.4.2
+% =====================================================================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{url}
+
+\begin{document}
+
+% Title: concise and descriptive; clearly reflects the core contribution or system/technique.
+\title{PlanER: Cost-Based Optimization of Hybrid Classical--LLM Entity Resolution Plans in a Document Database}
+
+\author{
+\IEEEauthorblockN{Shashang Patel}
+\IEEEauthorblockA{\textit{School of Computer Science} \\
+\textit{University of Windsor}\\
+Windsor, Canada \\
+patel3cd@uwindsor.ca}
+\and
+\IEEEauthorblockN{Nauman Syed}
+\IEEEauthorblockA{\textit{School of Computer Science} \\
+\textit{University of Windsor}\\
+Windsor, Canada \\
+syed9i@uwindsor.ca}
+}
+
+\maketitle
+
+% Abstract: ~150-250 words. Summarize problem, motivation, proposed method/system, key results and the
+% main contribution. A reader should understand the entire contribution from the abstract alone.
+\begin{abstract}
+% TODO (team)
+\end{abstract}
+
+\begin{IEEEkeywords}
+% TODO (team): 4-6 keywords
+\end{IEEEkeywords}
+
+% -----------------------------------------------------------------------------------------------------
+\section{Introduction}
+% Purpose: establish why the work matters.
+% Components: background and context; problem statement; limitations of existing approaches;
+% key idea or approach; contributions as a bullet list (extremely important for VLDB reviewers;
+% e.g. novel algorithm/system, theoretical result, large-scale experimental validation, deployment insights).
+% TODO (team)
+
+% \begin{itemize}
+% \item % contribution 1
+% \item % contribution 2
+% \item % contribution 3
+% \end{itemize}
+
+% -----------------------------------------------------------------------------------------------------
+\section{Background and Preliminaries}
+% Optional but common: formal definitions, data model, query model, system assumptions, notation.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Problem Definition}
+% Formalize: the exact problem, input, output, constraints, assumptions.
+% For database papers: query formulation, optimization objective, data characteristics.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{System Overview and Method}
+% Core technical section: architecture overview, algorithms, data structures, model formulation,
+% optimization techniques. VLDB papers often include system diagrams, pseudocode and complexity analysis.
+\subsection{Architecture}
+% TODO (team)
+% \begin{figure}[t]
+% \centering
+% \includegraphics[width=\columnwidth]{figures/architecture.pdf}
+% \caption{}
+% \label{fig:arch}
+% \end{figure}
+
+\subsection{Access Paths}
+% TODO (team)
+
+\subsection{Matcher Cascade}
+% TODO (team)
+
+\subsection{Cost Model and Estimation}
+% TODO (team)
+
+\subsection{Plan Enumeration and Selection}
+% TODO (team)
+% \begin{algorithm}[t]
+% \caption{}
+% \label{alg:opt}
+% \begin{algorithmic}[1]
+% \STATE
+% \end{algorithmic}
+% \end{algorithm}
+
+% -----------------------------------------------------------------------------------------------------
+\section{Theoretical Analysis}
+% If applicable: complexity analysis, correctness, convergence, performance bounds.
+% TODO (team) -- or remove this section
+
+% -----------------------------------------------------------------------------------------------------
+\section{System Implementation}
+% System architecture, integration with existing DB systems, implementation details, scalability
+% considerations (e.g. query processing pipeline, indexing structures).
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Experimental Evaluation}
+% Must demonstrate effectiveness, efficiency and scalability.
+\subsection{Experimental Setup}
+% Hardware/software, configuration.
+% TODO (team)
+
+\subsection{Datasets}
+% TODO (team)
+% \begin{table}[t]
+% \caption{}
+% \label{tab:datasets}
+% \centering
+% \begin{tabular}{lrrr}
+% \toprule
+%  &  &  &  \\
+% \midrule
+%  &  &  &  \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+\subsection{Baselines and Metrics}
+% TODO (team)
+
+\subsection{Results and Analysis}
+% Common experiments: runtime performance, scalability with data size, ablation studies, comparison
+% with state-of-the-art methods.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Related Work}
+% Previous database systems, existing algorithms, similar approaches; compare with prior work and
+% highlight novelty and differences.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Discussion and Limitations}
+% Optional: limitations, deployment considerations, possible improvements.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Team Involvement and Project Organization}
+% Listed in the D.5 grading rubric ("Team involvement and project organization").
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+\section{Conclusion}
+% Main contribution, key results, impact; often future work directions.
+% TODO (team)
+
+% -----------------------------------------------------------------------------------------------------
+% References: copied from the team's D.2.1 proposal (IEEE style). Add or remove entries as cited.
+\begin{thebibliography}{00}
+\bibitem{fellegi1969} I. P. Fellegi and A. B. Sunter, ``A theory for record linkage,'' \textit{J. Amer. Statist. Assoc.}, vol. 64, no. 328, pp. 1183--1210, 1969.
+\bibitem{konda2016} P. Konda \textit{et al.}, ``Magellan: Toward building entity matching management systems,'' \textit{Proc. VLDB Endow.}, vol. 9, no. 12, pp. 1197--1208, 2016.
+\bibitem{li2020} Y. Li, J. Li, Y. Suhara, A. Doan, and W.-C. Tan, ``Deep entity matching with pre-trained language models,'' \textit{Proc. VLDB Endow.}, vol. 14, no. 1, pp. 50--60, 2020.
+\bibitem{narayan2022} A. Narayan, I. Chami, L. Orr, S. Arora, and C. R\'e, ``Can foundation models wrangle your data?'' \textit{Proc. VLDB Endow.}, vol. 16, no. 4, pp. 738--746, 2022.
+\bibitem{peeters2025} R. Peeters, A. Steiner, and C. Bizer, ``Entity matching using large language models,'' in \textit{Proc. 28th Int. Conf. Extending Database Technology (EDBT)}, 2025, pp. 529--541.
+\bibitem{patel2025lotus} L. Patel, S. Jha, M. Pan, H. Gupta, P. Asawa, C. Guestrin, and M. Zaharia, ``Semantic operators and their optimization: Enabling LLM-based data processing with accuracy guarantees in LOTUS,'' \textit{Proc. VLDB Endow.}, vol. 18, no. 11, pp. 4171--4184, 2025.
+\bibitem{liu2025palimpzest} C. Liu \textit{et al.}, ``Palimpzest: Optimizing AI-powered analytics with declarative query processing,'' in \textit{Proc. Conf. Innovative Data Systems Research (CIDR)}, 2025.
+\bibitem{mongodb2025} MongoDB, Inc., ``Public preview: MongoDB Community Edition now offers native full-text and vector search,'' Sep. 2025. [Online]. Available: \url{https://www.mongodb.com/products/updates/}
+\bibitem{russo2026abacus} M. Russo, C. Liu, S. Sudhir, G. Vitagliano, M. Cafarella, T. Kraska, and S. Madden, ``Abacus: A cost-based optimizer for semantic operator systems,'' \textit{Proc. VLDB Endow.}, vol. 19, no. 5, pp. 1060--1073, 2026.
+\bibitem{selinger1979} P. G. Selinger, M. M. Astrahan, D. D. Chamberlin, R. A. Lorie, and T. G. Price, ``Access path selection in a relational database management system,'' in \textit{Proc. ACM SIGMOD Int. Conf. Management of Data}, 1979, pp. 23--34.
+\bibitem{fan2024} M. Fan, X. Han, J. Fan, C. Chai, N. Tang, G. Li, and X. Du, ``Cost-effective in-context learning for entity resolution: A design space exploration,'' in \textit{Proc. 40th IEEE Int. Conf. Data Engineering (ICDE)}, 2024, pp. 3696--3709.
+\bibitem{wang2025} T. Wang \textit{et al.}, ``Match, compare, or select? An investigation of large language models for entity matching,'' in \textit{Proc. 31st Int. Conf. Computational Linguistics (COLING)}, 2025, pp. 96--109.
+\bibitem{guo2026} C. Guo, M. C. A. Klein, and Z. Huang, ``CaRL-EM: Cost-aware reinforcement learning for entity matching with LLMs,'' in \textit{Proc. 64th Annu. Meeting Assoc. Computational Linguistics (ACL)}, 2026, pp. 27281--27293.
+\bibitem{huang2026} D. Huang, P. Pai, and Z. Wang, ``Entity matching with LLMs at scale: Accuracy, cost, and reasoning effects,'' in \textit{Proc. Pacific-Asia Conf. Knowledge Discovery and Data Mining (PAKDD)}, LNCS vol. 16603, Springer, 2026.
+\bibitem{thirumuruganathan2021} S. Thirumuruganathan \textit{et al.}, ``Deep learning for blocking in entity matching: A design space exploration,'' \textit{Proc. VLDB Endow.}, vol. 14, no. 11, pp. 2459--2472, 2021.
+\bibitem{chen2023frugalgpt} L. Chen, M. Zaharia, and J. Zou, ``FrugalGPT: How to use large language models while reducing cost and improving performance,'' arXiv:2305.05176, 2023.
+\bibitem{papadakis2020} G. Papadakis, D. Skoutas, E. Thanos, and T. Palpanas, ``Blocking and filtering techniques for entity resolution: A survey,'' \textit{ACM Comput. Surv.}, vol. 53, no. 2, pp. 31:1--31:42, 2020.
+\bibitem{kopcke2010} H. K\"opcke, A. Thor, and E. Rahm, ``Evaluation of entity resolution approaches on real-world match problems,'' \textit{Proc. VLDB Endow.}, vol. 3, no. 1, pp. 484--493, 2010.
+\bibitem{peeters2024wdc} R. Peeters, R. C. Der, and C. Bizer, ``WDC Products: A multi-dimensional entity matching benchmark,'' in \textit{Proc. 27th Int. Conf. Extending Database Technology (EDBT)}, 2024, pp. 22--33.
+\end{thebibliography}
+
+% Addendums (optional): any additional documentation, preferably included in this main file.
+
+\end{document}
